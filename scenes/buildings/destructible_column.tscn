@@ -1,0 +1,10 @@
+[gd_scene format=3 uid="uid://c1lwag5q04786"]
+
+[ext_resource type="Script" uid="uid://cj5xvejsudm6u" path="res://scripts/buildings/destructible.gd" id="1_588ya"]
+
+[node name="destructible_column" type="Node3D" unique_id=1344654696]
+script = ExtResource("1_588ya")
+size = Vector3(0.5, 3, 0.5)
+grid_columns = 1
+grid_rows = 4
+break_force_threshold = 80.0

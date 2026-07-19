@@ -1,0 +1,69 @@
+[gd_scene format=3 uid="uid://jyo6cvox8bl"]
+
+[ext_resource type="PackedScene" uid="uid://36k0j65ag4ln" path="res://scenes/buildings/destructible_wall.tscn" id="1_ohusf"]
+[ext_resource type="PackedScene" uid="uid://cjb66fqcarwfu" path="res://scenes/buildings/destructible_floor.tscn" id="2_mxm7v"]
+[ext_resource type="PackedScene" uid="uid://31ixxa8380eb" path="res://scenes/player/player.tscn" id="3_jny3v"]
+[ext_resource type="PackedScene" uid="uid://b2uhc5vjuehfe" path="res://scenes/ui/hud.tscn" id="4_tahek"]
+[ext_resource type="Script" uid="uid://bxxfu4kmmvssx" path="res://scripts/buildings/structural_manager.gd" id="5_eoiwv"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_cc0pn"]
+
+[sub_resource type="Sky" id="Sky_nl2wh"]
+sky_material = SubResource("ProceduralSkyMaterial_cc0pn")
+
+[sub_resource type="Environment" id="Environment_rgmkv"]
+background_mode = 2
+sky = SubResource("Sky_nl2wh")
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_cu8qs"]
+size = Vector3(60, 1, 60)
+
+[sub_resource type="BoxMesh" id="BoxMesh_xqbd0"]
+size = Vector3(60, 1, 60)
+
+[node name="Level01House" type="Node3D" unique_id=548470526]
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=664903374]
+transform = Transform3D(0.8660254, 0.35355338, -0.35355338, 0, 0.70710677, 0.70710677, 0.5, -0.6123724, 0.6123724, 0, 0, 0)
+shadow_enabled = true
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=1944379806]
+environment = SubResource("Environment_rgmkv")
+
+[node name="Ground" type="StaticBody3D" parent="." unique_id=1141936409]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Ground" unique_id=1884541126]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
+shape = SubResource("BoxShape3D_cu8qs")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Ground" unique_id=244139534]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
+mesh = SubResource("BoxMesh_xqbd0")
+
+[node name="SpawnPoint" type="Node3D" parent="." unique_id=482817235]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 8)
+
+[node name="House" type="Node3D" parent="." unique_id=787802799]
+
+[node name="WallNorth" parent="House" unique_id=962966952 instance=ExtResource("1_ohusf")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -2)
+
+[node name="WallSouth" parent="House" unique_id=1012690801 instance=ExtResource("1_ohusf")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 2)
+
+[node name="WallEast" parent="House" unique_id=1508170896 instance=ExtResource("1_ohusf")]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, 2, 0, 0)
+
+[node name="WallWest" parent="House" unique_id=810413130 instance=ExtResource("1_ohusf")]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -2, 0, 0)
+
+[node name="Roof" parent="House" unique_id=1989938032 instance=ExtResource("2_mxm7v")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3, 0)
+
+[node name="Player" parent="." unique_id=250527275 instance=ExtResource("3_jny3v")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 8)
+
+[node name="Hud" parent="." unique_id=681837025 instance=ExtResource("4_tahek")]
+
+[node name="StructuralManager" type="Node3D" parent="." unique_id=53721361]
+script = ExtResource("5_eoiwv")

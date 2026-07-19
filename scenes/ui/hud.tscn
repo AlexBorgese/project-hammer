@@ -1,0 +1,37 @@
+[gd_scene format=3 uid="uid://b2uhc5vjuehfe"]
+
+[ext_resource type="Script" uid="uid://hhdijunqbqqv" path="res://scripts/ui/hud.gd" id="1_0mwgc"]
+
+[node name="Hud" type="CanvasLayer" unique_id=681837025]
+script = ExtResource("1_0mwgc")
+
+[node name="TimerLabel" type="Label" parent="." unique_id=1225248499]
+offset_right = 40.0
+offset_bottom = 23.0
+
+[node name="DestructionLabel" type="Label" parent="." unique_id=1729113413]
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -40.0
+offset_bottom = 23.0
+grow_horizontal = 0
+
+[node name="DestructionBar" type="ProgressBar" parent="." unique_id=1945431333]
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -40.0
+offset_bottom = 27.0
+grow_horizontal = 0
+
+[node name="CoinsLabel" type="Label" parent="." unique_id=1954864413]
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -40.0
+offset_top = -23.0
+grow_horizontal = 0
+grow_vertical = 0
