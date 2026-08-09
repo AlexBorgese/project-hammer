@@ -1,0 +1,15 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" uid="uid://cj5xvejsudm6u" path="res://scripts/buildings/destructible.gd" id="1_furn"]
+
+[node name="FurnitureChair" type="Node3D"]
+script = ExtResource("1_furn")
+structural_role = 2
+is_load_bearing = false
+size = Vector3(0.5, 0.9, 0.5)
+grid_columns = 1
+grid_rows = 3
+grid_depth = 1
+break_force_threshold = 15.0
+destruction_weight = 0.25
+chunk_mass = 2.0

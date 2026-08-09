@@ -1,0 +1,230 @@
+[gd_scene format=3 uid="uid://b8k4leqekxkl8"]
+
+[ext_resource type="PackedScene" uid="uid://31ixxa8380eb" path="res://scenes/player/player.tscn" id="3_xdbrv"]
+[ext_resource type="PackedScene" uid="uid://b2uhc5vjuehfe" path="res://scenes/ui/hud.tscn" id="4_gx05t"]
+[ext_resource type="Script" uid="uid://cxm2sl62777jb" path="res://scripts/buildings/floor_plan.gd" id="4_nlj2i"]
+[ext_resource type="Script" uid="uid://cj5xvejsudm6u" path="res://scripts/buildings/destructible.gd" id="5_7o6sy"]
+[ext_resource type="Script" uid="uid://bxxfu4kmmvssx" path="res://scripts/buildings/structural_manager.gd" id="5_x30j7"]
+[ext_resource type="PackedScene" path="res://scenes/buildings/furniture_bed.tscn" id="6_xdbrv"]
+[ext_resource type="PackedScene" path="res://scenes/buildings/furniture_table.tscn" id="7_gx05t"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_cc0pn"]
+
+[sub_resource type="Sky" id="Sky_nl2wh"]
+sky_material = SubResource("ProceduralSkyMaterial_cc0pn")
+
+[sub_resource type="Environment" id="Environment_rgmkv"]
+background_mode = 2
+sky = SubResource("Sky_nl2wh")
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_cu8qs"]
+size = Vector3(60, 1, 60)
+
+[sub_resource type="BoxMesh" id="BoxMesh_xqbd0"]
+size = Vector3(60, 1, 60)
+
+[node name="Level02House" type="Node3D" unique_id=548470526]
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=664903374]
+transform = Transform3D(0.8660254, 0.35355338, -0.35355338, 0, 0.70710677, 0.70710677, 0.5, -0.6123724, 0.6123724, 0, 0, 0)
+shadow_enabled = true
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=1944379806]
+environment = SubResource("Environment_rgmkv")
+
+[node name="Ground" type="StaticBody3D" parent="." unique_id=1141936409]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Ground" unique_id=1884541126]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
+shape = SubResource("BoxShape3D_cu8qs")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Ground" unique_id=244139534]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.111904144, -0.5234928, 0.020427227)
+mesh = SubResource("BoxMesh_xqbd0")
+
+[node name="SpawnPoint" type="Node3D" parent="." unique_id=482817235]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 10)
+
+[node name="Player" parent="." unique_id=250527275 instance=ExtResource("3_xdbrv")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 8)
+
+[node name="Hud" parent="." unique_id=681837025 instance=ExtResource("4_gx05t")]
+
+[node name="StructuralManager" type="Node3D" parent="." unique_id=53721361]
+script = ExtResource("5_x30j7")
+level_id = "level_02_house"
+
+[node name="GroundFloor" type="Node3D" parent="." unique_id=1791872175]
+script = ExtResource("4_nlj2i")
+layout = PackedStringArray("LLK", "HHB")
+
+[node name="FloorSlab" type="Node3D" parent="GroundFloor" unique_id=766988181]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.3, 0)
+script = ExtResource("5_7o6sy")
+size = Vector3(12, 0.3, 8)
+grid_columns = 6
+grid_rows = 1
+grid_depth = 4
+
+[node name="Wall_-53_-40_0" type="Node3D" parent="GroundFloor" unique_id=1949703661]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.3, 0, -4)
+script = ExtResource("5_7o6sy")
+size = Vector3(1.4, 3, 0.3)
+grid_columns = 1
+
+[node name="Wall_-27_-40_1" type="Node3D" parent="GroundFloor" unique_id=1983865519]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.7, 0, -4)
+script = ExtResource("5_7o6sy")
+size = Vector3(1.4, 3, 0.3)
+grid_columns = 1
+
+[node name="Wall_0_-40_0" type="Node3D" parent="GroundFloor" unique_id=951350517]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -4)
+script = ExtResource("5_7o6sy")
+size = Vector3(4, 3, 0.3)
+
+[node name="Wall_40_-40_0" type="Node3D" parent="GroundFloor" unique_id=703230053]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 0, -4)
+script = ExtResource("5_7o6sy")
+size = Vector3(4, 3, 0.3)
+
+[node name="Wall_-53_0_0" type="Node3D" parent="GroundFloor" unique_id=218060509]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.3, 0, 0)
+script = ExtResource("5_7o6sy")
+structural_role = 1
+size = Vector3(1.4, 3, 0.3)
+grid_columns = 1
+break_force_threshold = 45.0
+destruction_weight = 0.7
+chunk_mass = 7.0
+
+[node name="Wall_-27_0_1" type="Node3D" parent="GroundFloor" unique_id=824689905]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.7, 0, 0)
+script = ExtResource("5_7o6sy")
+structural_role = 1
+size = Vector3(1.4, 3, 0.3)
+grid_columns = 1
+break_force_threshold = 45.0
+destruction_weight = 0.7
+chunk_mass = 7.0
+
+[node name="Wall_-13_0_0" type="Node3D" parent="GroundFloor" unique_id=1157688575]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.3, 0, 0)
+script = ExtResource("5_7o6sy")
+structural_role = 1
+size = Vector3(1.4, 3, 0.3)
+grid_columns = 1
+break_force_threshold = 45.0
+destruction_weight = 0.7
+chunk_mass = 7.0
+
+[node name="Wall_13_0_1" type="Node3D" parent="GroundFloor" unique_id=1849670010]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.3, 0, 0)
+script = ExtResource("5_7o6sy")
+structural_role = 1
+size = Vector3(1.4, 3, 0.3)
+grid_columns = 1
+break_force_threshold = 45.0
+destruction_weight = 0.7
+chunk_mass = 7.0
+
+[node name="Wall_27_0_0" type="Node3D" parent="GroundFloor" unique_id=934072762]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.7, 0, 0)
+script = ExtResource("5_7o6sy")
+structural_role = 1
+size = Vector3(1.4, 3, 0.3)
+grid_columns = 1
+break_force_threshold = 45.0
+destruction_weight = 0.7
+chunk_mass = 7.0
+
+[node name="Wall_53_0_1" type="Node3D" parent="GroundFloor" unique_id=904132346]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.3, 0, 0)
+script = ExtResource("5_7o6sy")
+structural_role = 1
+size = Vector3(1.4, 3, 0.3)
+grid_columns = 1
+break_force_threshold = 45.0
+destruction_weight = 0.7
+chunk_mass = 7.0
+
+[node name="Wall_-40_40_0" type="Node3D" parent="GroundFloor" unique_id=1117015871]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 0, 4)
+script = ExtResource("5_7o6sy")
+size = Vector3(4, 3, 0.3)
+
+[node name="Wall_0_40_0" type="Node3D" parent="GroundFloor" unique_id=1689603213]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 4)
+script = ExtResource("5_7o6sy")
+size = Vector3(4, 3, 0.3)
+
+[node name="Wall_40_40_0" type="Node3D" parent="GroundFloor" unique_id=2077474131]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 0, 4)
+script = ExtResource("5_7o6sy")
+size = Vector3(4, 3, 0.3)
+
+[node name="Wall_-60_-20_0" type="Node3D" parent="GroundFloor" unique_id=987213757]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -6, 0, -2)
+script = ExtResource("5_7o6sy")
+size = Vector3(4, 3, 0.3)
+
+[node name="Wall_-60_20_0" type="Node3D" parent="GroundFloor" unique_id=2104816804]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -6, 0, 2)
+script = ExtResource("5_7o6sy")
+size = Vector3(4, 3, 0.3)
+
+[node name="Wall_20_-7_0" type="Node3D" parent="GroundFloor" unique_id=2084080337]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, 2, 0, -0.70000005)
+script = ExtResource("5_7o6sy")
+structural_role = 1
+size = Vector3(1.4, 3, 0.3)
+grid_columns = 1
+break_force_threshold = 45.0
+destruction_weight = 0.7
+chunk_mass = 7.0
+
+[node name="Wall_20_-33_1" type="Node3D" parent="GroundFloor" unique_id=1399941283]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, 2, 0, -3.3)
+script = ExtResource("5_7o6sy")
+structural_role = 1
+size = Vector3(1.4, 3, 0.3)
+grid_columns = 1
+break_force_threshold = 45.0
+destruction_weight = 0.7
+chunk_mass = 7.0
+
+[node name="Wall_20_33_0" type="Node3D" parent="GroundFloor" unique_id=1981482149]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, 2, 0, 3.3)
+script = ExtResource("5_7o6sy")
+structural_role = 1
+size = Vector3(1.4, 3, 0.3)
+grid_columns = 1
+break_force_threshold = 45.0
+destruction_weight = 0.7
+chunk_mass = 7.0
+
+[node name="Wall_20_7_1" type="Node3D" parent="GroundFloor" unique_id=707735636]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, 2, 0, 0.70000005)
+script = ExtResource("5_7o6sy")
+structural_role = 1
+size = Vector3(1.4, 3, 0.3)
+grid_columns = 1
+break_force_threshold = 45.0
+destruction_weight = 0.7
+chunk_mass = 7.0
+
+[node name="Wall_60_-20_0" type="Node3D" parent="GroundFloor" unique_id=2122590252]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, 6, 0, -2)
+script = ExtResource("5_7o6sy")
+size = Vector3(4, 3, 0.3)
+
+[node name="Wall_60_20_0" type="Node3D" parent="GroundFloor" unique_id=192499439]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, 6, 0, 2)
+script = ExtResource("5_7o6sy")
+size = Vector3(4, 3, 0.3)
+
+[node name="FurnitureBed" parent="." unique_id=1280139969 instance=ExtResource("6_xdbrv")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.4318624, 0.076691985, 1.4384592)
+
+[node name="FurnitureTable" parent="." unique_id=1608618072 instance=ExtResource("7_gx05t")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.8739796, 1.7418952, -1.9350371)

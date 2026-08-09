@@ -96,8 +96,8 @@ a spring-damper pushes the hammer toward it:
 
 ```
 force = (target - position) * stiffness * mass
-      - velocity * damping * mass
-      + gravity_compensation
+	  - velocity * damping * mass
+	  + gravity_compensation
 ```
 
 Heavy mass + low stiffness = it lags, overshoots, keeps swinging. Damage is real
@@ -253,21 +253,34 @@ sledgehammer" at 5% of the cost of a `Skeleton3D` + `SkeletonIK3D` setup, and
 none of that work survives contact with a real character model later. Revisit
 when there's art worth rigging.
 
-### Task 7 — Performance pass
+### Task 7 — Performance pass ✅ DONE (pulled forward)
 
-400–600 chunks is 5–10× Milestone 1. Before it's playable:
+**Done:** the contact graph is now cached instead of rebuilt every check.
+
+The original plan here said "only re-probe chunks within N metres of the break."
+That was wrong as stated — probing is local, but flood-fill *reachability* is
+global. Knocking out a ground-floor wall can unsupport a roof chunk 8m away, so
+the fill has to stay whole-level.
+
+What actually works: intact chunks are frozen, so they never move, so their
+contact links can't change while intact. Build the graph once at level load,
+mark only the neighbours of a break as dirty, re-probe just those, and run the
+fill over the cache. The fill is a pure memory walk — microseconds over 600
+nodes.
+
+Cost went from ~600 shape queries every 0.2s to ~600 once at load plus 10–20
+per break. Probe shape and query params are also reused rather than allocated
+per chunk per check.
+
+**Known consequence:** fallen debris doesn't create *new* support in the cached
+graph — a pile of rubble won't hold up a wall. This matches the old behaviour
+and is arguably correct, but it's a design choice, not just an optimisation.
+
+Still open for later if needed:
 
 - Set `debris_lifetime` to ~20s so rubble cleans itself up
-- Cap `StructuralManager` collapse checks — currently one shape query per intact
-  chunk per check. At 600 chunks and 0.2s intervals that's 3000 queries/sec.
-  **Fix: only re-probe chunks within N metres of the break**, not the whole level
 - Ensure frozen chunks are genuinely sleeping (`can_sleep = true`)
-- Consider `MultiMeshInstance3D` for intact chunks if draw calls become the
-  bottleneck
-
-**This task is not optional and should be done alongside Task 5, not after.**
-Building the whole house and then discovering it runs at 12fps means unpicking
-level design decisions that were made for the wrong reasons.
+- `MultiMeshInstance3D` for intact chunks if draw calls become the bottleneck
 
 ### Task 8 — Level complete screen
 

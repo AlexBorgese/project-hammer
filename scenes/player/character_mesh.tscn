@@ -1,0 +1,74 @@
+[gd_scene format=3 uid="uid://bcl67dne80o2h"]
+
+[ext_resource type="Script" uid="uid://c51gp4y7nnqx4" path="res://scripts/player/character_rig.gd" id="1_3s5oh"]
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_cgvwl"]
+top_radius = 0.25
+bottom_radius = 0.25
+height = 0.9
+
+[sub_resource type="SphereMesh" id="SphereMesh_gevro"]
+radius = 0.18
+height = 0.36
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_fhp44"]
+top_radius = 0.08
+bottom_radius = 0.08
+height = 0.7
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_rdroo"]
+top_radius = 0.08
+bottom_radius = 0.08
+height = 0.7
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_bijls"]
+top_radius = 0.1
+bottom_radius = 0.1
+height = 0.8
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_lrxum"]
+top_radius = 0.1
+bottom_radius = 0.1
+height = 0.8
+
+[node name="CharacterMesh" type="Node3D" unique_id=232391616]
+script = ExtResource("1_3s5oh")
+
+[node name="TorsoPivot" type="Node3D" parent="." unique_id=35472202]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
+
+[node name="Torso" type="MeshInstance3D" parent="TorsoPivot" unique_id=1210737274]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.45, 0)
+mesh = SubResource("CylinderMesh_cgvwl")
+
+[node name="Head" type="MeshInstance3D" parent="TorsoPivot" unique_id=185345194]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.05, 0)
+mesh = SubResource("SphereMesh_gevro")
+
+[node name="ShoulderL" type="Node3D" parent="TorsoPivot" unique_id=1431878574]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.3, 0.75, 0)
+
+[node name="ArmL" type="MeshInstance3D" parent="TorsoPivot/ShoulderL" unique_id=902466350]
+transform = Transform3D(1, 0, 0, 0, -4.371139e-08, 1, 0, -1, -4.371139e-08, 0, 0, -0.35)
+mesh = SubResource("CylinderMesh_fhp44")
+
+[node name="ShoulderR" type="Node3D" parent="TorsoPivot" unique_id=1031186707]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.3, 0.75, 0)
+
+[node name="ArmR" type="MeshInstance3D" parent="TorsoPivot/ShoulderR" unique_id=2077230612]
+transform = Transform3D(1, 0, 0, 0, -4.371139e-08, 1, 0, -1, -4.371139e-08, 0, 0, -0.35)
+mesh = SubResource("CylinderMesh_rdroo")
+
+[node name="HipL" type="Node3D" parent="." unique_id=425801663]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.12, 0.85, 0)
+
+[node name="LegL" type="MeshInstance3D" parent="HipL" unique_id=48755133]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.4, 0)
+mesh = SubResource("CylinderMesh_bijls")
+
+[node name="HipR" type="Node3D" parent="." unique_id=2000508262]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.12, 0.85, 0)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="HipR" unique_id=974292287]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.4, 0)
+mesh = SubResource("CylinderMesh_lrxum")

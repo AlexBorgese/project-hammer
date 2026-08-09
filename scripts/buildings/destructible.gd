@@ -1,21 +1,46 @@
 # Generates a grid of RigidBody3D chunks at runtime and handles impact damage,
 # breaking chunks free from their neighbours when hit hard enough.
+@tool
 class_name Destructible
 extends Node3D
 
 signal chunk_destroyed(chunk: RigidBody3D)
 signal fully_destroyed
 
+enum Role { STRUCTURAL, PARTITION, FURNITURE }
+
+# Presets applied when structural_role changes in the inspector.
+# role -> [break_force_threshold, destruction_weight, chunk_mass]
+const ROLE_PRESETS := {
+	Role.STRUCTURAL: [90.0, 1.0, 12.0],
+	Role.PARTITION: [45.0, 0.7, 7.0],
+	Role.FURNITURE: [20.0, 0.25, 3.0],
+}
+
+## What this object is structurally. Picking a role rewrites the three tuning
+## values below to sensible defaults — you can still override any of them
+## afterwards, and changing the role again will overwrite them.
+@export var structural_role: Role = Role.STRUCTURAL:
+	set = _set_structural_role
+
 ## Overall size of the slab in metres (width, height, thickness).
-@export var size: Vector3 = Vector3(4.0, 3.0, 0.4)
+@export var size: Vector3 = Vector3(4.0, 3.0, 0.4):
+	set(v):
+		size = v
+		if Engine.is_editor_hint():
+			_build_editor_preview()
 ## How many chunks across (X), up (Y) and through (Z).
 @export var grid_columns: int = 3
 @export var grid_rows: int = 3
 @export var grid_depth: int = 1
 ## Impact force required to knock a chunk loose.
-@export var break_force_threshold: float = 50.0
+@export var break_force_threshold: float = 90.0
+## How much each chunk of this object contributes to level completion, relative
+## to a structural wall chunk at 1.0. Stops 200 chair chunks from dominating
+## the destruction percentage.
+@export var destruction_weight: float = 1.0
 ## Mass of each individual chunk.
-@export var chunk_mass: float = 8.0
+@export var chunk_mass: float = 12.0
 ## Small gap between chunks so they don't start interpenetrating.
 @export var chunk_gap: float = 0.005
 ## Material applied to every chunk. Leave null for the default grey.
@@ -26,6 +51,10 @@ signal fully_destroyed
 ## Use Generic6DOFJoint3D links between neighbours instead of the freeze model.
 ## Joints look more organic but are jitterier under Jolt with many bodies.
 @export var use_joints: bool = false
+## Whether this object takes part in structural support analysis. Load-bearing
+## things need it; furniture does not — a chair holds nothing up, and including
+## it only risks the support probe deciding it's floating.
+@export var is_load_bearing: bool = true
 
 @export_group("Debris")
 ## Broken chunks get lighter so they scatter instead of forming a dead pile.
@@ -49,10 +78,81 @@ var _neighbours: Dictionary = {}
 var _joints: Array[Generic6DOFJoint3D] = []
 
 
+# Writing the presets straight into the exports (rather than reading the role at
+# runtime) means the inspector shows the real numbers and you can override any
+# of them by hand afterwards.
+func _set_structural_role(value: Role) -> void:
+	var changed := structural_role != value
+	structural_role = value
+	# Only ever rewrite the tuning values in response to a live edit in the
+	# editor. Applying them at runtime would clobber whatever the .tscn saved,
+	# and would silently depend on the order Godot restores properties in.
+	if not changed or not Engine.is_editor_hint():
+		return
+	if not ROLE_PRESETS.has(value):
+		return
+	var preset: Array = ROLE_PRESETS[value]
+	break_force_threshold = preset[0]
+	destruction_weight = preset[1]
+	chunk_mass = preset[2]
+	is_load_bearing = value != Role.FURNITURE
+	_build_editor_preview()
+	notify_property_list_changed()
+
+
+const PREVIEW_NAME := "__EditorPreview"
+
+
 func _ready() -> void:
+	# @tool script: never build physics bodies inside the editor. Show a single
+	# ghost box instead, so layouts are visible without simulating anything.
+	if Engine.is_editor_hint():
+		_build_editor_preview()
+		return
 	_build_grid()
 	if use_joints:
 		_build_joints()
+
+
+# Editor-only stand-in for the chunk grid. Never given an owner, so it is not
+# saved into the .tscn.
+func _build_editor_preview() -> void:
+	if not is_inside_tree():
+		return
+	var existing := get_node_or_null(PREVIEW_NAME)
+	if existing != null:
+		existing.free()
+
+	var mesh := MeshInstance3D.new()
+	mesh.name = PREVIEW_NAME
+	var box := BoxMesh.new()
+	box.size = size
+	mesh.mesh = box
+
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = _preview_colour()
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mesh.material_override = mat
+
+	add_child(mesh)
+	mesh.owner = null
+	# Destructible origins sit at bottom-centre; BoxMesh is centred.
+	mesh.position = Vector3(0.0, size.y * 0.5, 0.0)
+
+
+func _preview_colour() -> Color:
+	match structural_role:
+		Role.STRUCTURAL:
+			return Color(0.6, 0.6, 0.65, 0.55)
+		Role.PARTITION:
+			return Color(0.55, 0.7, 0.85, 0.45)
+		_:
+			return Color(0.85, 0.7, 0.45, 0.45)
+
+
+# Total weighted value of this object, used by StructuralManager.
+func get_total_weight() -> float:
+	return float(get_chunk_count()) * destruction_weight
 
 
 func get_chunk_count() -> int:

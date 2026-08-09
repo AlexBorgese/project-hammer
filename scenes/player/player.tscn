@@ -3,12 +3,9 @@
 [ext_resource type="Script" uid="uid://bi63rj7ujfw7w" path="res://scripts/player/player_controller.gd" id="1_gmlin"]
 [ext_resource type="Script" uid="uid://by6towfxqr342" path="res://scripts/player/hammer_swing.gd" id="2_lvxji"]
 [ext_resource type="PackedScene" uid="uid://c01j5tpwn41gb" path="res://scenes/player/hammer.tscn" id="3_p47bc"]
+[ext_resource type="PackedScene" uid="uid://bcl67dne80o2h" path="res://scenes/player/character_mesh.tscn" id="4_lvxji"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_75vfm"]
-radius = 0.4
-height = 1.8
-
-[sub_resource type="CapsuleMesh" id="CapsuleMesh_0owmy"]
 radius = 0.4
 height = 1.8
 
@@ -19,9 +16,6 @@ script = ExtResource("1_gmlin")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1228103325]
 shape = SubResource("CapsuleShape3D_75vfm")
-
-[node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=1938487126]
-mesh = SubResource("CapsuleMesh_0owmy")
 
 [node name="CameraPivot" type="Node3D" parent="." unique_id=160246436]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.6, 0)
@@ -41,3 +35,6 @@ script = ExtResource("2_lvxji")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.6, -0.3, -0.8)
 
 [node name="Hammer" parent="SwingRig" unique_id=1731061103 instance=ExtResource("3_p47bc")]
+
+[node name="CharacterMesh" parent="." unique_id=232391616 instance=ExtResource("4_lvxji")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.9, 0)

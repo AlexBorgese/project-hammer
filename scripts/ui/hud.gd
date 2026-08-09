@@ -40,13 +40,17 @@ func _ready() -> void:
 	_connect_structural_manager()
 
 
+# Polls rather than waiting a fixed number of frames — the StructuralManager's
+# own startup does a variable amount of work before it registers itself.
 func _connect_structural_manager() -> void:
-	# Two frames: the StructuralManager itself waits one frame before registering.
-	await get_tree().process_frame
-	await get_tree().process_frame
 	var gm := _gm()
 	if gm == null:
 		return
+	for _attempt in 120:
+		if gm.structural_manager != null:
+			break
+		await get_tree().process_frame
+
 	var manager = gm.structural_manager
 	if manager == null:
 		push_warning("Hud: no StructuralManager registered; destruction % will not update.")
