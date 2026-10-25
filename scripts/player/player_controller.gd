@@ -6,6 +6,8 @@ extends CharacterBody3D
 
 signal stagger_started(duration: float)
 signal stagger_ended
+signal climb_started
+signal climb_ended
 
 @export var move_speed: float = 5.0
 @export var acceleration: float = 12.0
@@ -19,11 +21,24 @@ signal stagger_ended
 ## Speed multiplier while a swing is being wound up.
 @export var swing_move_penalty: float = 0.35
 
+@export_group("Climbing")
+## Vertical speed on a ladder, in metres per second.
+@export var climb_speed: float = 2.6
+## Sideways drift allowed while on a ladder.
+@export var climb_lateral_speed: float = 1.2
+## Small forward nudge at the top so you step onto the ledge instead of
+## sliding back down the ladder face.
+@export var climb_dismount_boost: float = 2.5
+
 @onready var pivot: Node3D = $CameraPivot
 @onready var spring_arm: SpringArm3D = $CameraPivot/SpringArm3D
 
 var look_enabled: bool = true
 var stagger_time_left: float = 0.0
+var is_climbing: bool = false
+
+# Ladders currently overlapping. A set, because two ladders can overlap.
+var _climb_zones: Array[Node3D] = []
 
 var _gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity", 9.8)
 
@@ -54,6 +69,11 @@ func _apply_look(relative: Vector2) -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if is_climbing and stagger_time_left <= 0.0:
+		_process_climb(delta)
+		move_and_slide()
+		return
+
 	if not is_on_floor():
 		velocity.y -= _gravity * delta
 
@@ -63,6 +83,63 @@ func _physics_process(delta: float) -> void:
 		_process_movement(delta)
 
 	move_and_slide()
+
+
+# On a ladder gravity is off entirely and W/S drive vertical movement.
+func _process_climb(delta: float) -> void:
+	var input := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
+	velocity.y = -input.y * climb_speed
+
+	var lateral := transform.basis.x * input.x * climb_lateral_speed
+	velocity.x = lateral.x
+	velocity.z = lateral.z
+
+	# Jump to let go and drop off.
+	if Input.is_action_just_pressed("ui_accept"):
+		_release_climb()
+		velocity.y = jump_velocity * 0.6
+		return
+
+	# Reaching the top of the climb volume pushes you forward onto the floor.
+	if input.y < 0.0 and _at_climb_top():
+		var forward := -transform.basis.z
+		velocity.x = forward.x * climb_dismount_boost
+		velocity.z = forward.z * climb_dismount_boost
+		velocity.y = climb_speed
+
+
+func _at_climb_top() -> bool:
+	for zone in _climb_zones:
+		if not is_instance_valid(zone):
+			continue
+		if zone.has_method("get_top_position"):
+			if global_position.y >= zone.get_top_position().y - 0.4:
+				return true
+	return false
+
+
+# Called by Ladder when the player enters or leaves its climb volume.
+func enter_climb(zone: Node3D) -> void:
+	if zone in _climb_zones:
+		return
+	_climb_zones.append(zone)
+	if not is_climbing:
+		is_climbing = true
+		velocity.y = 0.0
+		climb_started.emit()
+
+
+func exit_climb(zone: Node3D) -> void:
+	_climb_zones.erase(zone)
+	if _climb_zones.is_empty():
+		_release_climb()
+
+
+func _release_climb() -> void:
+	if not is_climbing:
+		return
+	is_climbing = false
+	climb_ended.emit()
 
 
 func _process_movement(delta: float) -> void:

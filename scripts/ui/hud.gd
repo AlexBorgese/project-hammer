@@ -37,7 +37,19 @@ func _ready() -> void:
 	cm.balance_changed.connect(_on_balance_changed)
 	_on_balance_changed(cm.get_balance())
 	_on_timer_ticked(0.0)
+	_spawn_level_complete()
 	_connect_structural_manager()
+
+
+# Every level with a HUD gets a results screen, without adding it per level.
+func _spawn_level_complete() -> void:
+	var scene := load("res://scenes/ui/level_complete.tscn") as PackedScene
+	if scene == null:
+		push_warning("Hud: level_complete.tscn missing; no results screen.")
+		return
+	add_child(scene.instantiate())
+	# F3 profiling overlay — script-only, no scene needed.
+	add_child(PerfOverlay.new())
 
 
 # Polls rather than waiting a fixed number of frames — the StructuralManager's
@@ -46,17 +58,24 @@ func _connect_structural_manager() -> void:
 	var gm := _gm()
 	if gm == null:
 		return
+	# After Retry reloads the scene, GameManager still holds the *old*, freed
+	# manager until the new one registers. A plain null check would latch onto
+	# the dead one, so require a live manager that's actually in the tree.
 	for _attempt in 120:
-		if gm.structural_manager != null:
+		if _is_live(gm.structural_manager):
 			break
 		await get_tree().process_frame
 
 	var manager = gm.structural_manager
-	if manager == null:
+	if not _is_live(manager):
 		push_warning("Hud: no StructuralManager registered; destruction % will not update.")
 		return
 	manager.destruction_changed.connect(_on_destruction_changed)
 	_on_destruction_changed(manager.destruction_percentage)
+
+
+func _is_live(node) -> bool:
+	return is_instance_valid(node) and node.is_inside_tree()
 
 
 func _on_timer_ticked(time: float) -> void:

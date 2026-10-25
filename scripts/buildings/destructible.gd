@@ -238,8 +238,9 @@ func _make_chunk(col: int, row: int, layer: int, chunk_size: Vector3) -> RigidBo
 	body.mass = chunk_mass
 	body.collision_layer = chunk_layer
 	body.collision_mask = chunk_mask
-	body.contact_monitor = true
-	body.max_contacts_reported = 4
+	# No contact_monitor on chunks: hits are detected on the hammer's side, and
+	# per-body contact reporting is real overhead once hundreds of chunks are
+	# tumbling during a collapse.
 	body.freeze = not use_joints
 	body.freeze_mode = RigidBody3D.FREEZE_MODE_STATIC
 	body.set_meta("destructible", self)

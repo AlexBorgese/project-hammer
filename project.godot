@@ -81,6 +81,7 @@ swing_down={
 3d_physics/layer_3="player"
 3d_physics/layer_4="hammer"
 3d_physics/layer_5="debris"
+3d_physics/layer_6="climbable"
 
 [physics]
 

@@ -22,11 +22,28 @@ signal collapse_occurred(chunk_count: int)
 @export var support_probe_distance: float = 0.12
 ## Seconds between support checks. Debounces bursts of breaking chunks.
 @export var collapse_check_interval: float = 0.2
-## Print graph stats at load and on each collapse. Useful when things fall over
-## that shouldn't.
+## How far, in metres, a structure can reach sideways from its nearest support
+## before it falls. Lower = floors drop sooner once walls go. This is the main
+## knob for how "pancakey" buildings feel.
+@export var max_span: float = 3.0
+## Hanging *below* a supporter is weaker than spanning across from one. This
+## multiplies the per-metre cost for downward hangs.
+@export var hang_cost_multiplier: float = 2.0
+## How many unsupported chunks are released per physics frame. Lower = smoother
+## frame times during a big collapse, but a slower-looking crumble.
+@export var max_collapses_per_frame: int = 40
+## Print graph stats at load and on each collapse, and tint every standing
+## chunk by stability (green = solid, red = about to go).
 @export var debug_collapse: bool = false
 
+const MAX_STABILITY := 100.0
+
 var destruction_percentage: float = 0.0
+
+# Profiling numbers, read by the F3 perf overlay.
+var graph_build_ms: float = 0.0
+var last_check_ms: float = 0.0
+var peak_check_ms: float = 0.0
 
 var _destructibles: Array[Destructible] = []
 var _total_weight: float = 0.0
@@ -45,6 +62,10 @@ var _grounded: Dictionary = {}
 var _graph_built: bool = false
 # Chunks whose links need re-probing on the next check.
 var _dirty: Dictionary = {}
+# Unsupported chunks waiting to be released, lowest first, and a set mirror so a
+# chunk already in the queue isn't queued again by the next check.
+var _collapse_queue: Array = []
+var _pending_collapse: Dictionary = {}
 
 # Reused across every probe so we aren't allocating a shape and a params object
 # per chunk per check.
@@ -75,7 +96,9 @@ func _ready() -> void:
 	# cost lands during level load rather than as a hitch on the first hit.
 	await get_tree().physics_frame
 	if enable_collapse:
+		var started := Time.get_ticks_usec()
 		_build_graph()
+		graph_build_ms = (Time.get_ticks_usec() - started) / 1000.0
 
 	var gm := _gm()
 	if gm == null:
@@ -88,12 +111,16 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	_drain_collapse_queue()
 	if not _check_queued:
 		return
 	_check_timer -= delta
 	if _check_timer <= 0.0:
 		_check_queued = false
+		var started := Time.get_ticks_usec()
 		_run_collapse_check()
+		last_check_ms = (Time.get_ticks_usec() - started) / 1000.0
+		peak_check_ms = maxf(peak_check_ms, last_check_ms)
 
 
 func _collect_destructibles(root: Node) -> void:
@@ -150,24 +177,54 @@ func _run_collapse_check() -> void:
 	else:
 		_reprobe_dirty()
 
-	var supported := _flood_fill()
+	var stability := _compute_stability()
+	if debug_collapse:
+		_tint_by_stability(stability)
 
-	var collapsed := 0
+	var doomed: Array = []
 	for chunk in _links.keys():
-		if supported.has(chunk) or not is_instance_valid(chunk):
+		if stability.get(chunk, 0.0) > 0.0 or not is_instance_valid(chunk):
+			continue
+		if _pending_collapse.has(chunk):
+			continue
+		doomed.append(chunk)
+
+	if doomed.is_empty():
+		return
+	_queue_collapses(doomed)
+	if debug_collapse:
+		print("[StructuralManager] queued %d chunks to collapse (%d still standing, %d grounded)"
+			% [doomed.size(), _links.size() - _pending_collapse.size(), _grounded.size()])
+	collapse_occurred.emit(doomed.size())
+
+
+# Collapses are released a batch per physics frame, lowest first, rather than
+# all at once. Unfreezing ~200 touching bodies in a single step was an 80–90 ms
+# physics hitch when a storey pancaked. Spread over a handful of frames the
+# solver cost is smoothed out and it still reads as one collapse — lowest-first
+# also means lower pieces start dropping before the ones landing on them.
+func _queue_collapses(chunks_to_drop: Array) -> void:
+	chunks_to_drop.sort_custom(
+		func(a, b): return a.global_position.y < b.global_position.y
+	)
+	for chunk in chunks_to_drop:
+		_pending_collapse[chunk] = true
+		_collapse_queue.append(chunk)
+
+
+func _drain_collapse_queue() -> void:
+	var released := 0
+	while released < max_collapses_per_frame and not _collapse_queue.is_empty():
+		var chunk = _collapse_queue.pop_front()
+		_pending_collapse.erase(chunk)
+		if not is_instance_valid(chunk) or not chunk.freeze:
 			continue
 		var owner_node := _owner_of(chunk)
 		if owner_node == null:
 			continue
 		owner_node.collapse_chunk(chunk)
 		owner_node.mark_collapsed(chunk)
-		collapsed += 1
-
-	if collapsed > 0:
-		if debug_collapse:
-			print("[StructuralManager] collapsed %d chunks (%d still standing, %d grounded)"
-				% [collapsed, _links.size(), _grounded.size()])
-		collapse_occurred.emit(collapsed)
+		released += 1
 
 
 # One-time full scan at level load. This is the only moment we pay for every
@@ -189,6 +246,7 @@ func _build_graph() -> void:
 	_dirty.clear()
 
 	if debug_collapse:
+		_tint_by_stability(_compute_stability())
 		print("[StructuralManager] graph: %d chunks, %d grounded, %d skipped (not load-bearing)"
 			% [_links.size(), _grounded.size(), skipped])
 		if _grounded.is_empty() and not _links.is_empty():
@@ -212,21 +270,70 @@ func _reprobe_dirty() -> void:
 	_dirty.clear()
 
 
-# Walks outward from the grounded chunks through the cached contact graph.
-# Whatever it can't reach has no load path to the ground.
-func _flood_fill() -> Dictionary:
-	var supported: Dictionary = {}
-	var queue: Array = _grounded.keys()
-	for chunk in queue:
-		supported[chunk] = true
+# Stability propagation over the cached contact graph. Grounded chunks start at
+# MAX_STABILITY. Support passed straight up is free; support passed sideways
+# costs stability per metre of horizontal distance. A chunk keeps the best value
+# reachable from any path, and falls if that best value is zero.
+#
+# This replaced a plain flood fill, which only asked "is there ANY path to the
+# ground?". Under that rule two surviving wall stubs — or the top step of a
+# staircase — held up an entire storey, because everything was connected to
+# them through the floor slab. Connectivity isn't capacity; span is a decent
+# stand-in for it.
+func _compute_stability() -> Dictionary:
+	var stability: Dictionary = {}
+	var queue: Array = []
+	for chunk in _grounded.keys():
+		if _links.has(chunk):
+			stability[chunk] = MAX_STABILITY
+			queue.append(chunk)
+
+	# Relax-until-stable (SPFA). Fine at a few hundred chunks; costs are
+	# non-negative so it always terminates.
 	while not queue.is_empty():
-		var current = queue.pop_back()
+		var current = queue.pop_front()
+		var current_value: float = stability[current]
 		for neighbour in _links.get(current, []):
-			if supported.has(neighbour):
+			# Non-load-bearing objects (furniture, stairs) can touch the graph but
+			# never relay support onward.
+			if not _links.has(neighbour):
 				continue
-			supported[neighbour] = true
-			queue.append(neighbour)
-	return supported
+			var value := current_value - _support_cost(current, neighbour)
+			if value > stability.get(neighbour, 0.0):
+				stability[neighbour] = value
+				queue.append(neighbour)
+	return stability
+
+
+# What it costs to pass support from one chunk to a touching one.
+func _support_cost(from: RigidBody3D, to: RigidBody3D) -> float:
+	var decay := MAX_STABILITY / maxf(max_span, 0.1)
+	var offset := to.global_position - from.global_position
+	var cost := Vector2(offset.x, offset.z).length() * decay
+	if offset.y < -0.05:
+		# Hanging under the supporter rather than resting on it.
+		cost += absf(offset.y) * decay * hang_cost_multiplier
+	return cost
+
+
+# Debug view: green chunks are solid, red ones are close to failing. Materials
+# are bucketed so we aren't allocating one per chunk per check.
+var _tint_materials: Array[StandardMaterial3D] = []
+
+func _tint_by_stability(stability: Dictionary) -> void:
+	if _tint_materials.is_empty():
+		for i in 11:
+			var mat := StandardMaterial3D.new()
+			mat.albedo_color = Color.RED.lerp(Color.GREEN, i / 10.0)
+			_tint_materials.append(mat)
+	for chunk in _links.keys():
+		if not is_instance_valid(chunk):
+			continue
+		var t := clampf(stability.get(chunk, 0.0) / MAX_STABILITY, 0.0, 1.0)
+		var mat := _tint_materials[roundi(t * 10.0)]
+		for child in chunk.get_children():
+			if child is MeshInstance3D:
+				child.material_override = mat
 
 
 # One shape query, writing straight into the cached graph. Finds both touching
@@ -292,6 +399,24 @@ func get_total_chunks() -> int:
 
 func get_destroyed_chunks() -> int:
 	return _destroyed_chunks
+
+
+# Chunks currently simulating — broken or collapsed, and not yet asleep. This is
+# what physics actually pays for. Walks every chunk, so call it a few times a
+# second at most.
+func count_awake_chunks() -> int:
+	var awake := 0
+	for d in _destructibles:
+		if not is_instance_valid(d):
+			continue
+		for chunk in d.chunks:
+			if is_instance_valid(chunk) and not chunk.freeze and not chunk.sleeping:
+				awake += 1
+	return awake
+
+
+func get_standing_chunks() -> int:
+	return _links.size()
 
 
 func get_total_weight() -> float:

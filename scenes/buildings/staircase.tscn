@@ -1,0 +1,8 @@
+[gd_scene format=3 uid="uid://d0kxrnhye8fn1"]
+
+[ext_resource type="Script" uid="uid://dfc1wtclau3px" path="res://scripts/buildings/staircase.gd" id="1_vpb65"]
+[ext_resource type="Script" uid="uid://cj5xvejsudm6u" path="res://scripts/buildings/destructible.gd" id="2_1unjd"]
+
+[node name="Staircase" type="Node3D" unique_id=1827311942]
+script = ExtResource("1_vpb65")
+

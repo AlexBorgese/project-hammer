@@ -78,6 +78,22 @@ physically touching, so the graph connects them.
 A downward-only probe was tried first and doesn't work: the middle of a 4×4 roof
 has no wall beneath it and would fall on level load. It's held up sideways.
 
+**Revised: stability, not connectivity.** The flood fill only asked "is there
+any path to the ground?" In play, two surviving interior wall stubs — and the
+top step of the staircase — held up the entire upper storey, because everything
+was connected to them through the floor slab. Connectivity isn't load capacity.
+
+Each chunk now gets a stability value. Grounded chunks start at 100; support
+passed straight up is free, support passed sideways costs `100 / max_span` per
+metre, and hanging below a supporter costs double. A chunk falls when its best
+reachable stability hits zero. With `max_span = 3.0`, a few stubs can hold up
+the slab within ~3m of themselves and the rest of the storey drops.
+
+Stairs are no longer load-bearing by default — each step is a solid column from
+the floor and stands on its own, and stairs shouldn't hold up floors.
+
+`debug_collapse` tints standing chunks green → red by stability.
+
 ### 4.3 Debris
 
 On break, a chunk becomes debris: mass ×0.3, scale ×0.8, damping raised. After
@@ -118,7 +134,94 @@ Autoloads are accessed via `/root/GameManager` lookup, not the bare identifier �
 a compile-time reference to a singleton takes down every consumer with a
 misleading error if the autoload fails to load.
 
-### 4.6 Physics layers
+### 4.6 Material roles and weighting
+
+`Destructible.structural_role` sets three tuning values at once:
+
+| Role | Threshold | Weight | Mass | Load-bearing |
+|---|---|---|---|---|
+| Structural | 90 | 1.0 | 12 | yes |
+| Partition | 45 | 0.7 | 7 | yes |
+| Furniture | 20 | 0.25 | 3 | **no** |
+
+Completion is measured by **weight**, not chunk count:
+`destruction_percentage = destroyed_weight / total_weight`. A chunk of chair is
+worth a quarter of a chunk of wall, so ~24 pieces of furniture across a house
+comes to roughly 13% of level weight — worth smashing, impossible to win on.
+
+The role setter only rewrites values **in the editor**, never at runtime.
+Applying presets on load would clobber whatever the `.tscn` saved and would
+silently depend on the order Godot restores properties in. In `.tscn` files,
+`structural_role` must be listed *before* the values it presets.
+
+`is_load_bearing = false` (automatic for Furniture) excludes an object from the
+structural graph entirely. A chair holds nothing up, so asking "does this chair
+have a load path to the ground?" is a question that should never be asked — and
+asking it was what made furniture collapse on level load.
+
+### 4.7 Level generation
+
+`FloorPlan` (`@tool`) builds one storey from a grid layout:
+
+```
+layout = ["LLK",
+		  "HHB"]
+```
+
+One string per row, one character per cell, same character = same room. Walls
+are built only where adjacent cells **differ**, which gives shared walls for
+free — `L|L` builds nothing, `L|K` builds a partition, `L|outside` builds a
+structural exterior wall. Roles are assigned by that same rule.
+
+Doorways are punched automatically between differing rooms, splitting the wall
+into two segments. `stairwell_cells` omits floor cells so a staircase has
+somewhere to arrive.
+
+Floors are built **one slab per cell** rather than one sheet, so a floor can
+partially collapse and so stairwell cells can simply be skipped.
+
+Stack storeys by placing a second `FloorPlan` at `y = cell_size.y`. No wiring
+needed — the collapse graph is spatial, so upper walls find lower walls as
+support automatically.
+
+`Staircase` (`@tool`) generates one `Destructible` per step, each a solid wedge
+from floor to tread height rather than a floating slab, so steps hold each
+other up properly.
+
+Because `Destructible` builds no chunks in the editor, it draws one translucent
+ghost box instead, colour-coded by role — grey structural, blue partition,
+amber furniture. Preview meshes are given no owner, so they're never saved.
+
+### 4.8 Ladder and climbing
+
+The staircase is destructible and sits in a hallway you'll be smashing anyway.
+Destroy it and the **ladder** becomes the only route upstairs.
+
+The player carries exactly one ladder; **G** places it in front, G again nearby
+picks it back up. Carrying one means where you leave it is a real decision.
+
+Walking into a ladder's `Area3D` starts a climb: gravity off, W/S vertical, A/D
+shuffle, jump to let go. Reaching the top applies a forward nudge so you step
+onto the ledge rather than sliding back down the face — the absence of that
+nudge is what makes most ladder implementations feel broken.
+
+### 4.9 Camera in interiors
+
+A 3m third-person boom is inside a wall in any real interior. Raising ceilings
+moves the problem rather than fixing it.
+
+`CameraRig` (on the `SpringArm3D`) sphere-casts backwards each physics frame
+and applies **asymmetric** smoothing:
+
+- pulls in almost instantly when blocked — so it can never end up inside geometry
+- eases out slowly when clear — so it doesn't lurch past every doorway
+
+It sphere-casts rather than raycasts because a ray threads through gaps the
+camera's near plane cannot, which produces "mostly works, occasionally pops
+through a wall". The obstruction mask is world + destructible and **must not**
+include debris, or flying rubble yanks the view.
+
+### 4.10 Physics layers
 
 | Layer | Name | Used by |
 |---|---|---|
@@ -127,6 +230,7 @@ misleading error if the autoload fails to load.
 | 3 | player | Player capsule |
 | 4 | hammer | Hammer head |
 | 5 | debris | Settled rubble (nothing masks it) |
+| 6 | climbable | Ladder climb volumes |
 
 ---
 
@@ -136,50 +240,45 @@ misleading error if the autoload fails to load.
 rooms and furniture, and give the player a visible body. Blockout meshes only —
 primitives, no art pass, no textures.
 
-**Agreed scope**
+**Status: substantially complete.** All systems built and verified in play.
+Remaining: dress the house with furniture, add a roof, level complete screen.
 
-- Two storeys, 3–4 rooms per floor
-- Furniture is destructible, but softer than walls and worth less toward completion
-- Full structural collapse: the upper floor rests on ground-floor walls, and
-  bringing the whole thing down is the intended challenge
-- Character is cylinder/box primitives — torso, head, two legs, two arms — plus
-  the hammer
+| # | Task | Status |
+|---|---|---|
+| 1 | Destruction weighting | ✅ |
+| 2 | Structural roles | ✅ |
+| 3 | Furniture prefabs | ✅ five prefabs |
+| 4 | Level generation (`FloorPlan`) | ✅ |
+| 5 | Two-storey house | 🔶 shell stands; furniture to place |
+| 6 | Character model and rig | ✅ |
+| 7 | Performance pass | ✅ pulled forward |
+| 8 | Level complete screen | ⬜ not started |
+| 9 | Destructible staircase | ✅ |
+| 10 | Ladder item and climbing | ✅ |
+| 11 | Interior camera | ✅ |
 
-### Task 1 — Destruction weighting
+**Scope changes agreed during the milestone**
 
-Right now every chunk counts equally toward the 85%. A chair shouldn't be worth
-as much as a load-bearing wall.
+- Furniture is **hand-placed**, not auto-scattered — the auto-scatter tool was
+  specced and then dropped in favour of authored placement.
+- Stairs are destructible **and** a ladder item was added as the fallback route
+  upstairs. This wasn't in the original milestone; it turns "how do I get up
+  there" into a consequence of your own demolition.
 
-- Add `@export var destruction_weight: float = 1.0` to `Destructible`
-- `StructuralManager` sums **weighted** totals rather than raw chunk counts:
-  `total_weight += chunk_count * destruction_weight`
-- Suggested values: structural walls `1.0`, floors `1.0`, interior partitions
-  `0.7`, furniture `0.25`
-- `destruction_percentage` becomes `destroyed_weight / total_weight`
+**Bugs found and fixed in play**
 
-**Why:** without this, adding furniture silently makes levels easier — 200 chair
-chunks would dominate the percentage and you'd win without touching the house.
+- Furniture fell apart on level load — it was in the structural graph and being
+  judged unsupported. Furniture is now excluded via `is_load_bearing = false`.
+- Camera pushed through walls and ceilings indoors — the `SpringArm3D` mask was
+  world-only and never saw the building.
+- Upper floor slab sealed the stairwell — floors are now per-cell with
+  `stairwell_cells` to omit them.
 
-### Task 2 — Structural roles
+### Task 3 reference — furniture prefabs
 
-Add `@export_enum("Structural", "Partition", "Furniture") var structural_role`
-to `Destructible`, which sets sensible defaults for `break_force_threshold`,
-`destruction_weight`, and `chunk_mass` in one go.
-
-| Role | Threshold | Weight | Feel |
-|---|---|---|---|
-| Structural | 90 | 1.0 | Load-bearing. Tough. Holds the house up. |
-| Partition | 45 | 0.7 | Interior walls. Two or three good hits. |
-| Furniture | 20 | 0.25 | Explodes when looked at. |
-
-**Design note:** load-bearing walls being genuinely tough is what makes collapse
-an *achievement* rather than a shortcut. If structural walls were soft, the
-optimal strategy would be to knock out two pillars and watch — which is a cool
-moment once, but not a game.
-
-### Task 3 — Furniture prefabs
-
-Build as `Destructible` scenes with `structural_role = Furniture`:
+Built as `Destructible` scenes with `structural_role = Furniture`. Thresholds
+vary a little by type — a chair should disintegrate, a counter should take a
+real hit — while all sit far below a partition at 45.
 
 | Prefab | Size (m) | Grid | Notes |
 |---|---|---|---|
@@ -191,39 +290,34 @@ Build as `Destructible` scenes with `structural_role = Furniture`:
 
 All primitives. No art.
 
-### Task 4 — Room and building composition
+### Task 4 — Level generation ✅ DONE
 
-Add `scripts/buildings/room_builder.gd` — a tool script that generates a
-rectangular room from exports rather than hand-placing walls:
+Built as `FloorPlan` rather than the per-room `room_builder` originally specced.
+A per-room builder would have made two adjacent rooms each construct their own
+wall — double the chunks and a z-fighting seam down every shared boundary. A
+grid floor plan builds each wall once. See §4.7.
 
-- `room_size: Vector3`, `wall_thickness`, `has_ceiling: bool`
-- `doorways: Array[Vector2]` — positions along each wall to leave gaps
-- Spawns four `Destructible` walls with the correct role, skipping doorway spans
-- `@tool` annotation so rooms preview in the editor
-
-**Why generate rather than place by hand:** a two-storey, 7-room house is ~30
-wall segments. Placing those manually and re-placing them every time you retune
-a size is the kind of task that quietly kills momentum.
-
-### Task 5 — Level 02: the house
+### Task 5 — Level 02: the house 🔶 SHELL DONE
 
 `scenes/levels/level_02_house.tscn`
 
 ```
-Ground floor (~10 x 8m)     Upper floor
-├── Living room             ├── Bedroom 1
-├── Kitchen                 ├── Bedroom 2
-├── Hallway (stairs)        └── Bathroom
-└── Back room
+Ground floor  ["LLK",     Upper floor  ["AAB",
+			   "HHB"]                   "LLB"]
+├── L Living room (2 cells)   ├── A Bedroom (2 cells)
+├── K Kitchen                 ├── B Bathroom (2 cells)
+└── H Hallway (2 cells)       └── L Landing (2 cells)
+	B Back room
 ```
 
-- Ground-floor exterior walls: `Structural`
-- Interior dividers: `Partition`
-- **First-floor slab is a `Destructible` with role `Structural`** resting on the
-  ground-floor walls — this is what makes the upper storey pancake
-- Roof on top of the upper walls
-- Furniture scattered per room, 3–6 pieces each
-- Player spawns outside the front
+Two `FloorPlan` nodes, upper at `y = 3.0`. `cell_size` `(4, 3, 4)`, grid 3×2.
+Stairwell at cell `(0, 1)`; staircase instanced at `(-4, 0, 2)`.
+
+**Verified in play:** both storeys stand stably, upper walls register the lower
+walls as support, the camera survives the interior.
+
+**Remaining:** hand-place furniture (3–6 pieces per room), add a roof, and move
+the player spawn outside the front.
 
 **Target: 400–600 chunks.** Profile before adding more.
 
@@ -290,13 +384,31 @@ Still open for later if needed:
 - Top 3 leaderboard times for the level
 - Retry / Level select buttons
 
+### Task 9 — Destructible staircase ✅ DONE
+
+Added mid-milestone, not in the original spec. `Staircase` (`@tool`) generates
+one `Destructible` per step. See §4.7.
+
+### Task 10 — Ladder and climbing ✅ DONE
+
+Added mid-milestone. The consequence of making stairs destructible: there has to
+be another way up. See §4.8.
+
+### Task 11 — Interior camera ✅ DONE
+
+Added mid-milestone, in response to the camera clipping through the first-floor
+slab. See §4.9.
+
 ### Exit criteria for Milestone 2
 
-- [ ] Two-storey house loads and stands stably at rest (no sag, no jitter)
-- [ ] Player has a visible body; arms track the hammer; legs move when walking
-- [ ] Furniture breaks easily and contributes proportionally less to the bar
-- [ ] Knocking out enough ground-floor structural walls pancakes the upper storey
+- [x] Two-storey house loads and stands stably at rest (no sag, no jitter)
+- [x] Player has a visible body; arms track the hammer; legs move when walking
+- [x] Furniture breaks easily and contributes proportionally less to the bar
+- [x] Camera works in interiors without clipping
+- [x] Stairs are destructible, with the ladder as a fallback route up
+- [x] Knocking out enough ground-floor structural walls pancakes the upper storey
 - [ ] Holds 60fps during a full collapse
+- [ ] House is furnished and has a roof
 - [ ] Level complete screen shows time, tier, coins and leaderboard
 
 ---
@@ -322,8 +434,17 @@ Sound, particles, camera shake, dust on collapse, art pass.
 - Do collapsed chunks count for full credit, or less than smashed ones? Full
   credit today. If collapse trivialises levels, add a `collapse_credit`
   multiplier around 0.6.
-- Stairs: real geometry the player walks up, or does the player just jump/climb
-  rubble to reach the first floor? Leaning toward rubble-climbing — it makes
-  your own destruction into the traversal.
+- ~~Stairs, or climb your own rubble?~~ **Decided:** destructible stairs plus a
+  carryable ladder as the fallback.
 - Does the 85% threshold still make sense at 600 chunks, or should later levels
   use a lower bar with a time bonus for going further?
+- Climbing currently overrides stagger, so a hammer blow can't knock you off a
+  ladder. Should it?
+- Stairs are `Partition` role, so they'll often be destroyed incidentally while
+  clearing the hallway rather than deliberately. That makes the ladder a recovery
+  from carelessness rather than a chosen tactic — probably the better version,
+  but worth confirming in play.
+- A 0.6m camera boom in a 4×4m room may still feel cramped. If so the honest fix
+  is near-first-person indoors, which is a bigger design call.
+- `front_door` punches a doorway in upper storeys too — a door to nowhere three
+  metres up. Currently untick it per-storey; could be automatic.

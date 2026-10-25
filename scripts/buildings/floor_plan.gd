@@ -39,11 +39,27 @@ extends Node3D
 @export var wall_columns: int = 3
 @export var wall_rows: int = 3
 ## Build a floor slab under the whole storey.
-@export var build_floor_slab: bool = true
+@export var build_floor_slab: bool = true:
+	set(v):
+		build_floor_slab = v
+		_request_rebuild()
+## Turn off to build only the slab — this is how you make a roof: a FloorPlan
+## at the top of the walls with walls disabled.
+@export var build_walls: bool = true:
+	set(v):
+		build_walls = v
+		_request_rebuild()
 ## Thickness of the floor slab in metres.
 @export var floor_thickness: float = 0.3
 ## Chunk subdivision of the floor slab, per cell.
 @export var floor_subdivision: int = 2
+## Cells to leave open in the floor, as grid coordinates (column, row). Use this
+## to punch a stairwell through an upper storey so the staircase below has
+## somewhere to arrive.
+@export var stairwell_cells: Array[Vector2i] = []:
+	set(v):
+		stairwell_cells = v
+		_request_rebuild()
 
 @export_group("Doorways")
 ## Leave a gap in walls between different rooms so the house is navigable.
@@ -67,7 +83,10 @@ var _rebuild_queued: bool = false
 
 
 func _ready() -> void:
+	# Generated content is never saved, so rebuild it whenever the scene opens —
+	# in the editor for the preview, at runtime for real.
 	if Engine.is_editor_hint():
+		_request_rebuild()
 		return
 	_rebuild()
 
@@ -110,8 +129,9 @@ func _rebuild() -> void:
 	_clear_generated()
 	if build_floor_slab:
 		_build_floor()
-	_build_walls_along_x()
-	_build_walls_along_z()
+	if build_walls:
+		_build_walls_along_x()
+		_build_walls_along_z()
 
 
 func _clear_generated() -> void:
@@ -217,23 +237,34 @@ func _make_wall_segment(
 	wall.rotation.y = deg_to_rad(y_rotation)
 
 
+# One slab per cell rather than a single sheet, so the floor can partially
+# collapse and so stairwell cells can simply be skipped.
 func _build_floor() -> void:
+	for row in grid_depth:
+		for col in grid_width:
+			if get_room_at(col, row) == "":
+				continue
+			if Vector2i(col, row) in stairwell_cells:
+				continue
+			_make_floor_cell(col, row)
+
+
+func _make_floor_cell(col: int, row: int) -> void:
 	var slab := Destructible.new()
-	slab.name = "FloorSlab"
+	slab.name = "Floor_%d_%d" % [col, row]
 	slab.structural_role = Destructible.Role.STRUCTURAL
-	slab.size = Vector3(
-		grid_width * cell_size.x, floor_thickness, grid_depth * cell_size.z
-	)
-	slab.grid_columns = grid_width * floor_subdivision
+	slab.size = Vector3(cell_size.x, floor_thickness, cell_size.z)
+	slab.grid_columns = floor_subdivision
 	slab.grid_rows = 1
-	slab.grid_depth = grid_depth * floor_subdivision
+	slab.grid_depth = floor_subdivision
 	_apply_role_presets(slab, Destructible.Role.STRUCTURAL)
 
 	add_child(slab)
 	slab.owner = _scene_owner()
 	slab.add_to_group(GENERATED_GROUP)
 	# Destructible origins sit at bottom-centre, so drop the slab below y=0.
-	slab.position = Vector3(0.0, -floor_thickness, 0.0)
+	var centre := _cell_centre(col, row)
+	slab.position = Vector3(centre.x, -floor_thickness, centre.z)
 
 
 # Nodes are created in code, so the role setter (editor-only) never fires.
@@ -247,9 +278,10 @@ func _apply_role_presets(d: Destructible, role: Destructible.Role) -> void:
 	d.chunk_mass = preset[2]
 
 
-# In the editor, generated children need an owner to show in the scene tree.
-# At runtime they must not have one.
+# Generated nodes are never given an owner, so they're never saved into the
+# .tscn. They used to be — and since node groups aren't saved either, the
+# cleanup on the next rebuild couldn't recognise them, and every load stacked a
+# fresh copy of every wall on top of the saved one. The scene now stores only
+# the FloorPlan's settings; the walls are rebuilt from them each time.
 func _scene_owner() -> Node:
-	if not Engine.is_editor_hint():
-		return null
-	return owner if owner != null else self
+	return null

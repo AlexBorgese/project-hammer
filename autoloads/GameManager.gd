@@ -36,6 +36,8 @@ func _ensure_input_actions() -> void:
 	_add_stick_action("move_back", JOY_AXIS_LEFT_Y, 1.0)
 
 	_add_mouse_action("swing", MOUSE_BUTTON_LEFT)
+	_add_key_action("place_ladder", KEY_G)
+	_add_joy_button_action("place_ladder", JOY_BUTTON_X)
 	_add_stick_action("swing_left", JOY_AXIS_RIGHT_X, -1.0)
 	_add_stick_action("swing_right", JOY_AXIS_RIGHT_X, 1.0)
 	_add_stick_action("swing_up", JOY_AXIS_RIGHT_Y, -1.0)
@@ -63,6 +65,16 @@ func _add_mouse_action(action: String, button: int) -> void:
 		if event is InputEventMouseButton:
 			return
 	var ev := InputEventMouseButton.new()
+	ev.button_index = button
+	InputMap.action_add_event(action, ev)
+
+
+func _add_joy_button_action(action: String, button: int) -> void:
+	_ensure_action(action)
+	for event in InputMap.action_get_events(action):
+		if event is InputEventJoypadButton:
+			return
+	var ev := InputEventJoypadButton.new()
 	ev.button_index = button
 	InputMap.action_add_event(action, ev)
 
